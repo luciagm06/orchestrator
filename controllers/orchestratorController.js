@@ -13,12 +13,12 @@ function health(req, res) {
   });
 }
 
-async function predict(req, res) {
+async function run(req, res) {  // ← CAMBIO AQUÍ
   const startTime = Date.now();
   const correlationId = generateCorrelationId();
 
   try {
-    console.log('[ORCHESTRATOR] Nueva peticion de prediccion');
+    console.log('[ORCHESTRATOR] Nueva peticion POST /run');
     console.log('[ORCHESTRATOR] correlationId:', correlationId);
 
     // PASO 1: Llamar a Acquire para obtener features
@@ -73,20 +73,12 @@ async function predict(req, res) {
 
     console.log('[ORCHESTRATOR] Orquestacion guardada. ID:', orchestration._id);
 
-    // PASO 4: Responder al cliente
+    // PASO 4: Responder según el contrato
     const response = {
-      orchestrationId: orchestration._id,
-      correlationId: correlationId,
       dataId: acquireData.dataId,
       predictionId: predictData.predictionId,
-      features: acquireData.features,
       prediction: predictData.prediction,
-      timestamp: orchestration.timestamp,
-      latency: {
-        acquire: acquireData.latencyMs || 0,
-        predict: predictData.latencyMs || 0,
-        total: orchestration.totalLatencyMs
-      }
+      timestamp: predictData.timestamp  // Timestamp de la predicción
     };
 
     res.status(200).json(response);
@@ -107,8 +99,20 @@ async function predict(req, res) {
       console.error('[ORCHESTRATOR] Error al guardar en MongoDB:', dbErr);
     }
 
-    res.status(500).json({
-      error: 'Orchestration failed',
+    // Determinar código de error según el tipo
+    let statusCode = 500;
+    let errorType = 'Internal Server Error';
+
+    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      statusCode = 502;
+      errorType = 'Bad Gateway';
+    } else if (err.code === 'ETIMEDOUT' || err.message.includes('timeout')) {
+      statusCode = 504;
+      errorType = 'Gateway Timeout';
+    }
+
+    res.status(statusCode).json({
+      error: errorType,
       message: err.message,
       correlationId: correlationId
     });
@@ -121,5 +125,5 @@ function generateCorrelationId() {
 
 module.exports = {
   health,
-  predict
+  run  // ← CAMBIO AQUÍ
 };
