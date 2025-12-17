@@ -13,7 +13,7 @@ function health(req, res) {
   });
 }
 
-async function run(req, res) {  // ← CAMBIO AQUÍ
+async function run(req, res) {  
   const startTime = Date.now();
   const correlationId = generateCorrelationId();
 
@@ -21,7 +21,6 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
     console.log('[ORCHESTRATOR] Nueva peticion POST /run');
     console.log('[ORCHESTRATOR] correlationId:', correlationId);
 
-    // PASO 1: Llamar a Acquire para obtener features
     console.log('[ORCHESTRATOR] Llamando a Acquire...');
     
     const acquireResponse = await axios.post(
@@ -35,7 +34,6 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
     console.log('[ORCHESTRATOR] dataId:', acquireData.dataId);
     console.log('[ORCHESTRATOR] features:', acquireData.features);
 
-    // PASO 2: Llamar a Predict con las features
     console.log('[ORCHESTRATOR] Llamando a Predict...');
 
     const predictResponse = await axios.post(
@@ -57,7 +55,6 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
     console.log('[ORCHESTRATOR] predictionId:', predictData.predictionId);
     console.log('[ORCHESTRATOR] prediction:', predictData.prediction);
 
-    // PASO 3: Guardar la orquestación en MongoDB
     const orchestration = await Orchestration.create({
       correlationId,
       dataId: acquireData.dataId,
@@ -73,12 +70,11 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
 
     console.log('[ORCHESTRATOR] Orquestacion guardada. ID:', orchestration._id);
 
-    // PASO 4: Responder según el contrato
     const response = {
       dataId: acquireData.dataId,
       predictionId: predictData.predictionId,
       prediction: predictData.prediction,
-      timestamp: predictData.timestamp  // Timestamp de la predicción
+      timestamp: predictData.timestamp  
     };
 
     res.status(200).json(response);
@@ -86,7 +82,6 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
   } catch (err) {
     console.error('[ORCHESTRATOR] Error:', err.message);
 
-    // Guardar el error en MongoDB
     try {
       await Orchestration.create({
         correlationId,
@@ -99,7 +94,6 @@ async function run(req, res) {  // ← CAMBIO AQUÍ
       console.error('[ORCHESTRATOR] Error al guardar en MongoDB:', dbErr);
     }
 
-    // Determinar código de error según el tipo
     let statusCode = 500;
     let errorType = 'Internal Server Error';
 
@@ -125,5 +119,5 @@ function generateCorrelationId() {
 
 module.exports = {
   health,
-  run  // ← CAMBIO AQUÍ
+  run  
 };
