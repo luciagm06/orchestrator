@@ -13,7 +13,7 @@ function health(req, res) {
   });
 }
 
-async function run(req, res) {  
+async function run(req, res) {
   const startTime = Date.now();
   const correlationId = generateCorrelationId();
 
@@ -21,8 +21,6 @@ async function run(req, res) {
     console.log('[ORCHESTRATOR] Nueva peticion POST /run');
     console.log('[ORCHESTRATOR] correlationId:', correlationId);
 
-    console.log('[ORCHESTRATOR] Llamando a Acquire...');
-    
     const acquireResponse = await axios.post(
       `${ACQUIRE_URL}/data`,
       {},
@@ -30,11 +28,14 @@ async function run(req, res) {
     );
 
     const acquireData = acquireResponse.data;
-    console.log('[ORCHESTRATOR] Datos obtenidos de Acquire');
-    console.log('[ORCHESTRATOR] dataId:', acquireData.dataId);
-    console.log('[ORCHESTRATOR] features:', acquireData.features);
 
-    console.log('[ORCHESTRATOR] Llamando a Predict...');
+    const targetDate = new Date(acquireData.createdAt);
+
+    const timeEnd = new Date(targetDate);
+    timeEnd.setDate(timeEnd.getDate() - 1);
+
+    const timeStart = new Date(timeEnd);
+    timeStart.setDate(timeStart.getDate() - 3);
 
     const predictResponse = await axios.post(
       `${PREDICT_URL}/predict`,
@@ -44,16 +45,16 @@ async function run(req, res) {
           featureCount: acquireData.featureCount,
           dataId: acquireData.dataId,
           source: 'orchestrator',
-          correlationId: correlationId
+          correlationId: correlationId,
+          target_date: targetDate.toISOString(),
+          time_start: timeStart.toISOString(),
+          time_end: timeEnd.toISOString()
         }
       },
       { timeout: 30000 }
     );
 
     const predictData = predictResponse.data;
-    console.log('[ORCHESTRATOR] Prediccion obtenida');
-    console.log('[ORCHESTRATOR] predictionId:', predictData.predictionId);
-    console.log('[ORCHESTRATOR] prediction:', predictData.prediction);
 
     const orchestration = await Orchestration.create({
       correlationId,
@@ -68,20 +69,14 @@ async function run(req, res) {
       timestamp: new Date()
     });
 
-    console.log('[ORCHESTRATOR] Orquestacion guardada. ID:', orchestration._id);
-
-    const response = {
+    res.status(200).json({
       dataId: acquireData.dataId,
       predictionId: predictData.predictionId,
       prediction: predictData.prediction,
-      timestamp: predictData.timestamp  
-    };
-
-    res.status(200).json(response);
+      timestamp: predictData.timestamp
+    });
 
   } catch (err) {
-    console.error('[ORCHESTRATOR] Error:', err.message);
-
     try {
       await Orchestration.create({
         correlationId,
@@ -119,5 +114,5 @@ function generateCorrelationId() {
 
 module.exports = {
   health,
-  run  
+  run
 };
