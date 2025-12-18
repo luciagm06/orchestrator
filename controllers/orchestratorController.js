@@ -1,7 +1,6 @@
 'use strict';
 
 const axios = require('axios');
-const Orchestration = require('../models/orchestration');
 
 const ACQUIRE_URL = process.env.ACQUIRE_URL || 'http://acquire:3001';
 const PREDICT_URL = process.env.PREDICT_URL || 'http://predict:3002';
@@ -56,18 +55,8 @@ async function run(req, res) {
 
     const predictData = predictResponse.data;
 
-    const orchestration = await Orchestration.create({
-      correlationId,
-      dataId: acquireData.dataId,
-      predictionId: predictData.predictionId,
-      features: acquireData.features,
-      prediction: predictData.prediction,
-      acquireLatencyMs: acquireData.latencyMs || 0,
-      predictLatencyMs: predictData.latencyMs || 0,
-      totalLatencyMs: Date.now() - startTime,
-      status: 'success',
-      timestamp: new Date()
-    });
+    const totalLatency = Date.now() - startTime;
+    console.log('[ORCHESTRATOR] Flujo completado en', totalLatency, 'ms');
 
     res.status(200).json({
       dataId: acquireData.dataId,
@@ -77,17 +66,7 @@ async function run(req, res) {
     });
 
   } catch (err) {
-    try {
-      await Orchestration.create({
-        correlationId,
-        status: 'error',
-        error: err.message,
-        totalLatencyMs: Date.now() - startTime,
-        timestamp: new Date()
-      });
-    } catch (dbErr) {
-      console.error('[ORCHESTRATOR] Error al guardar en MongoDB:', dbErr);
-    }
+    console.error('[ORCHESTRATOR] Error:', err.message);
 
     let statusCode = 500;
     let errorType = 'Internal Server Error';
